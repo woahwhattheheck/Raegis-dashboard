@@ -1,115 +1,96 @@
 import { create } from 'zustand';
 import { isConnected, isAllowed, requestAccess, getPublicKey, getNetwork } from '@stellar/freighter-api';
-import { resolvePassphrase, toStoredNetwork } from '@/lib/environment';
+import { toStoredNetwork } from '@/lib/environment';
+import {
+  classifyWalletError, connectedWallet, disconnectedWallet,
+  type WalletConnectionSnapshot,
+} from '@/features/wallet/connection';
 
-interface WalletState {
-  address: string | null;
-  /**
-   * Stable network string for the connected wallet — Freighter's short name
-   * (`TESTNET` / `PUBLIC`) when available, otherwise the passphrase. Never the
-   * raw Freighter object: callers treat this as a string (e.g. `.trim()`).
-   */
-  network: string | null;
+export interface WalletState extends WalletConnectionSnapshot {
+  /** Compatibility alias for existing signing and navigation consumers. */
   isConnecting: boolean;
-  /** Set when connection fails; cleared on a successful connect or disconnect. */
-  connectionError: string | null;
   connect: () => Promise<void>;
   disconnect: () => void;
-  /** Silently restore a previously-granted Freighter session on page load. */
   tryAutoReconnect: () => Promise<void>;
-  /**
-   * Re-read the wallet's current network without prompting the user. Freighter
-   * does not emit an event when the user switches networks, so callers must
-   * poll this to notice a switch that happened after connect.
-   */
   refreshNetwork: () => Promise<void>;
 }
 
+/** Cancels stale extension results after disconnect or a newer connection. */
+let connectionGeneration = 0;
+
 export const useWallet = create<WalletState>((set, get) => ({
-  address: null,
-  network: null,
+  ...disconnectedWallet(),
   isConnecting: false,
-  connectionError: null,
 
   connect: async () => {
-    set({ isConnecting: true, connectionError: null });
+    if (get().isConnecting) return;
+    const generation = ++connectionGeneration;
+    set({ ...disconnectedWallet('connecting'), isConnecting: true });
+    const finish = (snapshot: WalletConnectionSnapshot) => {
+      if (generation === connectionGeneration) set({ ...snapshot, isConnecting: false });
+    };
     try {
-      const installed = await isConnected();
-      if (!installed) {
-        set({
-          isConnecting: false,
-          connectionError: 'Freighter wallet is not installed. Visit https://www.freighter.app/ to install it.',
-        });
+      if (!(await isConnected())) {
+        finish(disconnectedWallet('unavailable'));
         return;
       }
-
-      const access = await requestAccess();
-      const networkDetails = await getNetwork();
-
-      set({
-        address: access,
-        network: toStoredNetwork(networkDetails),
-        isConnecting: false,
-        connectionError: null,
-      });
+      if (generation !== connectionGeneration) return;
+      const address = await requestAccess();
+      if (generation !== connectionGeneration) return;
+      if (!address) {
+        finish(disconnectedWallet('locked'));
+        return;
+      }
+      finish(connectedWallet(address, toStoredNetwork(await getNetwork())));
     } catch (error) {
-      console.error('Wallet connection failed', error);
-      set({
-        isConnecting: false,
-        connectionError: error instanceof Error ? error.message : 'Wallet connection failed. Please try again.',
-      });
+      finish(disconnectedWallet(classifyWalletError(error)));
     }
   },
 
-  /**
-   * Silently restores a Freighter session that was already granted before the
-   * last page load. Does nothing if Freighter is not installed, not allowed, or
-   * if the key is empty (extension locked). Call once in _app.tsx on mount.
-   *
-   * Uses `isAllowed()` (no popup) rather than `requestAccess()` (popup) so the
-   * user is never prompted unexpectedly on refresh.
-   */
+  /** Restore only previously allowed access; never opens an approval popup. */
   tryAutoReconnect: async () => {
+    if (get().status !== 'disconnected' || get().address) return;
+    const generation = ++connectionGeneration;
+    const finish = (snapshot: WalletConnectionSnapshot) => {
+      if (generation === connectionGeneration) set({ ...snapshot, isConnecting: false });
+    };
     try {
-      const installed = await isConnected();
-      if (!installed) return;
-
-      const alreadyAllowed = await isAllowed();
-      if (!alreadyAllowed) return;
-
-      const publicKey = await getPublicKey();
-      if (!publicKey) return;
-
-      const networkDetails = await getNetwork();
-      set({
-        address: publicKey,
-        network: toStoredNetwork(networkDetails),
-        connectionError: null,
-      });
-    } catch {
-      // Auto-reconnect is best-effort — never surface errors to the user.
+      if (!(await isConnected())) {
+        finish(disconnectedWallet('unavailable'));
+        return;
+      }
+      if (generation !== connectionGeneration || !(await isAllowed())) return;
+      if (generation !== connectionGeneration) return;
+      const address = await getPublicKey();
+      if (generation !== connectionGeneration) return;
+      if (!address) {
+        finish(disconnectedWallet('locked'));
+        return;
+      }
+      finish(connectedWallet(address, toStoredNetwork(await getNetwork())));
+    } catch (error) {
+      finish(disconnectedWallet(classifyWalletError(error)));
     }
   },
 
   refreshNetwork: async () => {
-    if (!get().address) return;
-
+    const address = get().address;
+    if (!address || get().isConnecting) return;
+    const generation = connectionGeneration;
     try {
-      const networkDetails = await getNetwork();
-      const next = toStoredNetwork(networkDetails);
-      // Freighter returns a fresh object every call, so compare by resolved
-      // passphrase rather than by reference — otherwise every poll would
-      // rewrite the store and re-render the app for no reason.
-      if (resolvePassphrase(next) !== resolvePassphrase(get().network)) {
-        set({ network: next });
-      }
-    } catch {
-      // Leave the previous value in place. A transient Freighter failure must
-      // not wipe a known-good network and falsely unlock a signing action.
+      const next = toStoredNetwork(await getNetwork());
+      if (generation !== connectionGeneration || get().address !== address) return;
+      const snapshot = connectedWallet(address, next);
+      if (snapshot.network !== get().network || snapshot.status !== get().status) set(snapshot);
+    } catch (error) {
+      if (generation !== connectionGeneration || get().address !== address) return;
+      // Retain observed network for diagnostics; remove stale signing identity.
+      set({ ...disconnectedWallet(classifyWalletError(error)), network: get().network });
     }
   },
 
   disconnect: () => {
-    set({ address: null, network: null, connectionError: null });
+    ++connectionGeneration;
+    set({ ...disconnectedWallet(), isConnecting: false });
   },
 }));

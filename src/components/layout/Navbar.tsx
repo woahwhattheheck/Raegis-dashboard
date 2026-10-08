@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 import { getAccessibleRoutes } from '@/features/auth/routes';
 import { useAuthStore } from '@/features/auth/store';
 import { useWallet } from '@/hooks/useWallet';
-import { truncateAddress } from '@/utils/formatting';
-import { Shield, AlertCircle, Menu } from 'lucide-react';
+import { Shield, Menu } from 'lucide-react';
+import WalletConnection from '@/features/wallet/components/WalletConnection';
 import MobileNav from '@/components/layout/MobileNav';
 
 const prettyRole = (role: string): string =>
@@ -14,7 +14,7 @@ const prettyRole = (role: string): string =>
     .join(' ');
 
 export default function Navbar() {
-  const { address, network, isConnecting, connectionError, connect, disconnect } = useWallet();
+  const { address, network } = useWallet();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const role = useAuthStore((state) => state.role);
   const isRoleLoading = useAuthStore((state) => state.isRoleLoading);
@@ -61,19 +61,7 @@ export default function Navbar() {
           <Menu size={20} aria-hidden="true" />
         </button>
 
-        {/* Inline connection error — replaces the removed alert() */}
-        {connectionError && !address && (
-          <span
-            role="alert"
-            title={connectionError}
-            className="md:flex items-center hidden gap-1 text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-1 rounded max-w-xs truncate"
-          >
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            <span className="truncate">{connectionError}</span>
-          </span>
-        )}
-
-        {address ? (
+        {address && (
           <div className="md:flex items-center space-x-3 hidden">
             <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500 font-mono">
               {network}
@@ -87,33 +75,16 @@ export default function Navbar() {
                 {prettyRole(role)}
               </span>
             ) : null}
-            <button
-              onClick={disconnect}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-md font-medium text-sm transition"
-            >
-              {truncateAddress(address)}
-            </button>
           </div>
-        ) : (
-          <button
-            onClick={connect}
-            disabled={isConnecting}
-            className="bg-aegis-brand hidden md:block hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium text-sm transition disabled:opacity-50"
-          >
-            {isConnecting ? 'Connecting…' : 'Connect Wallet'}
-          </button>
         )}
+        <div className="hidden md:block">
+          <WalletConnection />
+        </div>
       </div>
       <MobileNav
-        isConnected={Boolean(address)}
         isMobileMenuOpen={isMobileMenuOpen}
-        address={address ?? undefined}
-        disconnect={disconnect}
-        isConnecting={isConnecting}
-        onConnectWallet={connect}
         onClose={() => setIsMobileMenuOpen(false)}
         routes={accessibleRoutes}
-        connectionError={connectionError}
       />
     </nav>
   );

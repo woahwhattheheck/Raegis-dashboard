@@ -1,7 +1,7 @@
 "use client";
 
-import { truncateAddress } from "@/utils/formatting";
-import { AlertCircle, X } from "lucide-react";
+import WalletConnection from "@/features/wallet/components/WalletConnection";
+import { X } from "lucide-react";
 import Link from "next/link";
 import type { RouteAccessConfig } from "@/features/auth/types";
 
@@ -11,27 +11,15 @@ interface NavLink {
 }
 
 interface MobileNavProps {
-  isConnected: boolean;
   isMobileMenuOpen: boolean;
-  address?: string;
-  disconnect: () => void;
-  isConnecting: boolean;
-  onConnectWallet: () => void;
   onClose: () => void;
   routes: RouteAccessConfig[];
-  connectionError: string | null
 }
 
 export default function MobileNav({
-  isConnected,
   isMobileMenuOpen,
-  address,
-  disconnect,
-  isConnecting,
-  onConnectWallet,
   onClose,
   routes,
-  connectionError
 }: MobileNavProps) {
   const navLinks: NavLink[] = [
     { label: "Home", href: "/" },
@@ -82,44 +70,7 @@ export default function MobileNav({
 
         {/* Mobile Wallet Actions */}
         <div className="mt-4 border-t border-gray-200 pt-4">
-          {isConnected && address ? (
-            <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  disconnect();
-                  onClose();
-                }}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 px-4 py-2 rounded-md font-medium text-sm transition"
-              >
-                Disconnect {truncateAddress(address)}
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-3 justify-center">
-              <button
-                type="button"
-                onClick={onConnectWallet}
-                disabled={isConnecting}
-                className="bg-aegis-brand hover:bg-blue-600 text-white px-4 py-2 rounded-md font-medium text-sm transition disabled:opacity-50"
-              >
-                {isConnecting ? "Connecting…" : "Connect Wallet"}
-              </button>
-               {connectionError && !address && (
-                <span
-                  role="alert"
-                  title={connectionError}
-                  className="flex items-center md:hidden gap-1 text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-1 rounded max-w-xs truncate"
-                >
-                  <AlertCircle
-                    className="h-3.5 w-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                  <span className="truncate">{connectionError}</span>
-                </span>
-              )}
-            </div>
-          )}
+          <WalletConnection onAction={onClose} />
         </div>
       </div>
     </div>

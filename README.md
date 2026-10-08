@@ -48,6 +48,7 @@ Key resources for contributors:
 - [Transaction Review Modal](docs/transaction-review-modal.md) — Pre-signature review modal, operation summary mapper, and risk notes (Issue #177)
 - [Admin Action Receipts](docs/admin-action-receipts.md) — Privileged action status, target, hash, explorer link, and next-step guidance (Issue #179)
 - [Environment Mismatch Blocking Screen](docs/environment-mismatch-blocking.md) — Full-page blocking screen when the wallet network does not match the dashboard target network
+- [Freighter Connection State](docs/wallet-connection.md) — Shared connection states, retry guidance, and admin/investor consumers (Issue #7)
 - [Wallet Network Guard](docs/wallet-network-guard.md) — Per-action network guard: live Freighter network detection, block-versus-warn policy, and network assumptions (Issue #180)
 - [Investor Onboarding Eligibility](docs/investor-onboarding-eligibility.md) — Investor onboarding eligibility page, evaluation precedence, and SDK mapping
 - [Performance Budget Review](docs/performance-budget-review.md) — Typed budget threshold evaluation, edge cases, and reviewer checklist

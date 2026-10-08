@@ -7,3 +7,5 @@ export {
 export { useNetworkGuard, useWalletNetworkWatcher, WALLET_NETWORK_POLL_MS } from './useNetworkGuard';
 export * from './fixtures';
 export * from './types';
+export { default as WalletConnection } from './components/WalletConnection';
+export * from './connection';
